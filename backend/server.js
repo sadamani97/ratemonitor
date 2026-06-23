@@ -15,14 +15,19 @@ app.use(express.json());
 // Routes
 app.use('/api/competitors', competitorsRoutes);
 
-const server = app.listen(PORT, () => {
-  console.log(`Scraper backend running on port ${PORT}`);
-});
+// Export for Netlify serverless functions
+export default app;
+
+if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
+  const server = app.listen(PORT, () => {
+    console.log(`Scraper backend running on port ${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server error:', err);
+  });
+}
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
-});
-
-server.on('error', (err) => {
-  console.error('Server error:', err);
 });

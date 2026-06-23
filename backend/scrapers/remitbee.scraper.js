@@ -1,4 +1,4 @@
-export async function scrapeRemitBee(context, fromCur, toCur) {
+export async function scrapeRemitBee(fromCur, toCur) {
   try {
     const res = await fetch('https://api.remitbee.com/public-services/compressed/online-rates-multi-currency');
     if (!res.ok) return null;
