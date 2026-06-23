@@ -268,9 +268,9 @@ export default function RateMonitorDashboard() {
       setRatesLoading(true);
       
       try {
-        // Pass force=true if tick > 0 (meaning user manually refreshed)
         const forceStr = tick > 0 ? "true" : "false";
-        const res = await fetch(`/api/competitors?from=${pair.from}&to=${pair.to}&force=${forceStr}`);
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${baseUrl}/api/competitors?from=${pair.from}&to=${pair.to}&force=${forceStr}`);
         if (res.ok) {
           const data = await res.json();
           setCompetitorRates(data.data);

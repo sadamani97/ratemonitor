@@ -3,14 +3,20 @@ import cors from 'cors';
 import competitorsRoutes from './routes/competitors.routes.js';
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 3001;
+
+// Enable CORS for all origins in production, or specify your Vercel URL
+app.use(cors({
+  origin: '*' // In production, you might want to lock this down to your Vercel domain
+}));
+
+app.use(express.json());
 
 // Routes
 app.use('/api/competitors', competitorsRoutes);
 
-const PORT = 3001;
-const server = app.listen(PORT, '127.0.0.1', () => {
-  console.log(`Scraper backend running on http://127.0.0.1:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Scraper backend running on port ${PORT}`);
 });
 
 process.on('uncaughtException', (err) => {
