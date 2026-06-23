@@ -9,9 +9,9 @@ export async function scrapeWesternUnion(context, fromCur, toCur) {
     
     const wuData = await page.evaluate(({from, to}) => {
       const bodyText = document.body.innerText;
-      const regex = new RegExp(`1\\.?0*\\s*${from}\\s*[=\\-]\\s*([0-9.]+)\\s*${to}`, 'i');
+      const regex = new RegExp(`1\\.?0*\\s*${from}\\s*[=\\-]\\s*([0-9.]+)\\s*${to}|([0-9.]+)\\s*${to}`, 'i');
       const match = bodyText.match(regex);
-      const rate = match ? parseFloat(match[1]) : null;
+      const rate = match ? parseFloat(match[1] || match[2]) : null;
       
       const feeRegex = new RegExp(`([0-9.]+)\\s*${from}\\s*fee|fee[^0-9]*([0-9.]+)`, 'i');
       const feeMatch = bodyText.match(feeRegex);

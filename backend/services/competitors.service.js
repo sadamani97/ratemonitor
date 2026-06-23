@@ -39,6 +39,8 @@ export async function getAllCompetitorRates(fromCur, toCur) {
     results["XE"] = await scrapeXE(context, fromCur, toCur);
     results["Ria"] = await scrapeRia(context, fromCur, toCur);
 
+    results["TransferGo"] = await scrapeTransferGo(context, fromCur, toCur);
+
   } catch (err) {
     console.error("Playwright orchestration error:", err);
   } finally {
@@ -47,7 +49,6 @@ export async function getAllCompetitorRates(fromCur, toCur) {
   }
 
   // Fetch Direct APIs
-  results["TransferGo"] = await scrapeTransferGo(fromCur, toCur);
   results["Instarem"] = await scrapeInstarem(fromCur, toCur);
   results["OFX"] = await scrapeOFX(fromCur, toCur);
 
