@@ -262,14 +262,23 @@ export default function RateMonitorDashboard() {
   useEffect(() => {
     async function fetchCompetitors() {
       if (!pair.from || !pair.to) return;
+      
+      // Clear old data instantly when currency pair changes
+      setCompetitorRates(null);
+      setRatesLoading(true);
+      
       try {
-        const res = await fetch(`/api/competitors?from=${pair.from}&to=${pair.to}`);
+        // Pass force=true if tick > 0 (meaning user manually refreshed)
+        const forceStr = tick > 0 ? "true" : "false";
+        const res = await fetch(`/api/competitors?from=${pair.from}&to=${pair.to}&force=${forceStr}`);
         if (res.ok) {
           const data = await res.json();
           setCompetitorRates(data.data);
         }
       } catch(err) {
         console.error("Failed to fetch competitor exact rates:", err);
+      } finally {
+        setRatesLoading(false);
       }
     }
     fetchCompetitors();
@@ -284,45 +293,41 @@ export default function RateMonitorDashboard() {
   }, [pair, toMeta, currencies]);
   const dp = pair.to === "CAD" ? 4 : toMeta.dp;
 
-  /* ---- live clock + simulated refresh ---- */
+  /* ---- live clock ---- */
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
-  useEffect(() => {
-    if (!live) return;
-    const t = setInterval(() => setTick((x) => x + 1), 4000); // demo cadence
-    return () => clearInterval(t);
-  }, [live]);
 
   /* ---- competitor snapshot ---- */
   const rows = useMemo(() => {
-    const rnd = seeded(hash(pair.from + pair.to) + 7);
-    return COMPETITORS.map((name) => {
+    if (!competitorRates) return [];
+    
+    return Object.keys(competitorRates).map((name) => {
       const isBee = name === "RemitBee";
-      
-      let rate;
-      if (competitorRates && competitorRates[name]) {
-        rate = competitorRates[name];
-      } else {
-        const spread = isBee ? 0.0012 : (rnd() - 0.42) * 0.012;
-        const jitter = (seeded(hash(name + pair.to) + tick * 13)() - 0.5) * 0.0016;
-        rate = baseRate * (1 + spread + jitter);
-      }
+      const data = competitorRates[name];
+      const rate = data.rate || 0;
+      const fee = data.fee || 0;
 
-      const change = (seeded(hash(name + "chg") + tick * 7)() - 0.5) * 0.9;
-      const fee = isBee ? 0 : Math.round(rnd() * 6 * 100) / 100;
-      const hasApi = ["Wise", "XE", "OFX", "Remitly", "Instarem"].includes(name);
-      return { name, rate, change, fee, isBee, hasApi, source: (competitorRates && competitorRates[name]) ? "Live Scraping" : (hasApi ? "API" : "Scrape") };
+      const change = 0; // Fixed at 0 since data is exact live
+      return { 
+        name, 
+        rate, 
+        change, 
+        fee, 
+        isBee, 
+        hasApi: true, 
+        source: "Live Scraping" 
+      };
     });
-  }, [pair, baseRate, tick, competitorRates]);
+  }, [competitorRates, tick]);
 
   const sorted = [...rows].sort((a, b) => b.rate - a.rate);
-  const bee = rows.find((r) => r.isBee);
+  const bee = rows.find((r) => r.isBee) || { name: "RemitBee", rate: baseRate, fee: 0, change: 0, isBee: true };
   const competitors = rows.filter((r) => !r.isBee);
-  const highest = sorted[0];
-  const lowest = sorted[sorted.length - 1];
-  const avg = competitors.reduce((s, r) => s + r.rate, 0) / competitors.length;
+  const highest = sorted[0] || bee;
+  const lowest = sorted[sorted.length - 1] || bee;
+  const avg = competitors.length > 0 ? (competitors.reduce((s, r) => s + r.rate, 0) / competitors.length) : bee.rate;
   const spreadVal = highest.rate - lowest.rate;
   const beeRank = sorted.findIndex((r) => r.isBee) + 1;
   const diffVsBest = ((bee.rate - highest.rate) / highest.rate) * 100;
@@ -394,6 +399,8 @@ export default function RateMonitorDashboard() {
   /* ---- history table rows ---- */
   const historyRows = useMemo(() => {
     const out = [];
+    if (competitors.length === 0) return out;
+    
     for (let i = 0; i < 60; i++) {
       const r = competitors[i % competitors.length];
       const d = new Date(now.getTime() - i * 1000 * 60 * 7);

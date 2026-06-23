@@ -10,7 +10,10 @@ export async function scrapeInstarem(fromCur, toCur) {
         const latestDate = dates[dates.length - 1];
         const rateObj = data.data[latestDate];
         if (rateObj && rateObj[toCur]) {
-          return parseFloat(rateObj[toCur]);
+          return {
+            rate: parseFloat(rateObj[toCur]),
+            fee: 0 // Instarem often embeds margin into rate or uses variable fees
+          };
         }
       }
     }

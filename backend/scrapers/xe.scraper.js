@@ -1,22 +1,30 @@
-export async function scrapeXE(browser, fromCur, toCur) {
+export async function scrapeXE(context, fromCur, toCur) {
+  let page;
   try {
-    const pageXE = await browser.newPage();
-    await pageXE.setDefaultNavigationTimeout(60000);
-    await pageXE.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
-    await pageXE.goto(`https://www.xe.com/currencyconverter/convert/?Amount=1&From=${fromCur}&To=${toCur}`, { waitUntil: 'domcontentloaded' }).catch(e => console.error("XE Nav Error:", e));
+    page = await context.newPage();
+    await page.setDefaultNavigationTimeout(60000);
     
-    const xeRate = await pageXE.evaluate((from, to) => {
+    await page.goto(`https://www.xe.com/currencyconverter/convert/?Amount=1&From=${fromCur}&To=${toCur}`, { waitUntil: 'domcontentloaded' }).catch(e => console.error("XE Nav Error:", e.message));
+    
+    const xeData = await page.evaluate(({from, to}) => {
       const text = document.body.innerText;
       const regex = new RegExp(`1\\s*${from}\\s*=\\s*([0-9.]+)\\s*${to}`, 'i');
       let match = text.match(regex);
       if (!match) match = text.match(/([0-9.]+)\s*(Indian Rupees|Philippine Pesos|US Dollars)/i);
-      return match ? parseFloat(match[1]) : null;
-    }, fromCur, toCur);
+      const rate = match ? parseFloat(match[1]) : null;
+      
+      const feeRegex = new RegExp(`([0-9.]+)\\s*${from}\\s*fee|fee[^0-9]*([0-9.]+)`, 'i');
+      const feeMatch = text.match(feeRegex);
+      const fee = feeMatch ? parseFloat(feeMatch[1] || feeMatch[2]) : 0;
+      
+      return rate ? { rate, fee } : null;
+    }, { from: fromCur, to: toCur });
     
-    await pageXE.close();
-    return xeRate;
+    return xeData;
   } catch (err) {
-    console.error("XE scraper error:", err);
+    console.error("XE scraper error:", err.message);
     return null;
+  } finally {
+    if (page) await page.close().catch(e => {});
   }
 }

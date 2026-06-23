@@ -1,46 +1,49 @@
-import puppeteer from 'puppeteer';
-import { getPuppeteerConfig } from '../utils/puppeteerConfig.js';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
+chromium.use(stealth());
+
 import { scrapeWesternUnion } from '../scrapers/westernunion.scraper.js';
 import { scrapeWise } from '../scrapers/wise.scraper.js';
 import { scrapeXE } from '../scrapers/xe.scraper.js';
 import { scrapeRia } from '../scrapers/ria.scraper.js';
+import { scrapeRemitBee } from '../scrapers/remitbee.scraper.js';
 import { scrapeTransferGo } from '../scrapers/transfergo.scraper.js';
 import { scrapeInstarem } from '../scrapers/instarem.scraper.js';
 import { scrapeOFX } from '../scrapers/ofx.scraper.js';
-import { fetchMarketSpreads } from '../scrapers/marketApi.scraper.js';
 
 export async function getAllCompetitorRates(fromCur, toCur) {
   let browser;
-  let results = {
-    "Western Union": null,
-    "Wise": null,
-    "XE": null,
-    "Remitly": null,
-    "MoneyGram": null,
-    "WorldRemit": null,
-    "Ria": null,
-    "OFX": null,
-    "Instarem": null,
-    "Xoom": null,
-    "TransferGo": null,
-    "CurrencyFair": null,
-    "TapTap Send": null,
-    "Panda Remit": null,
-  };
+  let context;
+  let results = {};
 
   try {
-    browser = await puppeteer.launch(getPuppeteerConfig());
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--window-position=-2000,-2000'
+      ]
+    });
     
-    // Scrape exact rates concurrently where possible (or sequentially to save memory)
-    results["Western Union"] = await scrapeWesternUnion(browser, fromCur, toCur);
-    results["Wise"] = await scrapeWise(browser, fromCur, toCur);
-    results["XE"] = await scrapeXE(browser, fromCur, toCur);
-    results["Ria"] = await scrapeRia(browser, fromCur, toCur);
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+    });
+    
+    // Scrape exact DOM rates sequentially or concurrently
+    results["RemitBee"] = await scrapeRemitBee(context, fromCur, toCur);
+    results["Western Union"] = await scrapeWesternUnion(context, fromCur, toCur);
+    results["Wise"] = await scrapeWise(context, fromCur, toCur);
+    results["XE"] = await scrapeXE(context, fromCur, toCur);
+    results["Ria"] = await scrapeRia(context, fromCur, toCur);
 
   } catch (err) {
-    console.error("Puppeteer orchestration error:", err);
+    console.error("Playwright orchestration error:", err);
   } finally {
-    if (browser) await browser.close();
+    if (context) await context.close().catch(e => {});
+    if (browser) await browser.close().catch(e => {});
   }
 
   // Fetch Direct APIs
@@ -48,8 +51,15 @@ export async function getAllCompetitorRates(fromCur, toCur) {
   results["Instarem"] = await scrapeInstarem(fromCur, toCur);
   results["OFX"] = await scrapeOFX(fromCur, toCur);
 
-  // Fill in the rest using the live market spread hybrid approach
-  results = await fetchMarketSpreads(fromCur, toCur, results);
+  // We are removing the simulated fallback math entirely!
+  // If a company's scraper returns null, it remains null/undefined, and the frontend will simply not display it.
+  
+  // Filter out any failed scrapes
+  for (const key in results) {
+    if (!results[key]) {
+      delete results[key];
+    }
+  }
 
   return results;
 }

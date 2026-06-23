@@ -1,21 +1,30 @@
-export async function scrapeWesternUnion(browser, fromCur, toCur) {
+export async function scrapeWesternUnion(context, fromCur, toCur) {
+  let page;
   try {
-    const pageWU = await browser.newPage();
-    await pageWU.setDefaultNavigationTimeout(60000);
-    await pageWU.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
-    await pageWU.goto(`https://www.westernunion.com/ca/en/currency-converter/${fromCur.toLowerCase()}-to-${toCur.toLowerCase()}-rate.html`, { waitUntil: 'domcontentloaded' }).catch(e => console.error("WU Nav Error:", e));
+    page = await context.newPage();
+    await page.setDefaultNavigationTimeout(60000);
     
-    const wuRate = await pageWU.evaluate((from, to) => {
+    // Catch navigation errors gracefully in playwright without breaking the whole execution
+    await page.goto(`https://www.westernunion.com/ca/en/currency-converter/${fromCur.toLowerCase()}-to-${toCur.toLowerCase()}-rate.html`, { waitUntil: 'domcontentloaded' }).catch(e => console.error("WU Nav Error:", e.message));
+    
+    const wuData = await page.evaluate(({from, to}) => {
       const bodyText = document.body.innerText;
       const regex = new RegExp(`1\\.?0*\\s*${from}\\s*[=\\-]\\s*([0-9.]+)\\s*${to}`, 'i');
       const match = bodyText.match(regex);
-      return match ? parseFloat(match[1]) : null;
-    }, fromCur, toCur);
+      const rate = match ? parseFloat(match[1]) : null;
+      
+      const feeRegex = new RegExp(`([0-9.]+)\\s*${from}\\s*fee|fee[^0-9]*([0-9.]+)`, 'i');
+      const feeMatch = bodyText.match(feeRegex);
+      const fee = feeMatch ? parseFloat(feeMatch[1] || feeMatch[2]) : 0;
+      
+      return rate ? { rate, fee } : null;
+    }, { from: fromCur, to: toCur });
     
-    await pageWU.close();
-    return wuRate;
+    return wuData;
   } catch (err) {
-    console.error("Western Union scraper error:", err);
+    console.error("Western Union scraper error:", err.message);
     return null;
+  } finally {
+    if (page) await page.close().catch(e => {});
   }
 }

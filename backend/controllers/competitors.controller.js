@@ -9,10 +9,11 @@ const cache = {
 export const getCompetitors = async (req, res) => {
   const from = req.query.from || 'CAD';
   const to = req.query.to || 'INR';
+  const force = req.query.force === 'true';
   const cacheKey = `${from}_${to}`;
 
   // Serve from cache if less than 5 minutes old
-  if (cache.data[cacheKey] && Date.now() - cache.timestamp < 5 * 60 * 1000) {
+  if (!force && cache.data[cacheKey] && Date.now() - cache.timestamp < 5 * 60 * 1000) {
     return res.json({ cached: true, data: cache.data[cacheKey] });
   }
 
